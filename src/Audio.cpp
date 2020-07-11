@@ -18,7 +18,7 @@
 #include "aac_decoder/aac_decoder.h"
 
 //---------------------------------------------------------------------------------------------------------------------
-Audio::Audio() {
+ESP32_I2S_Audio::ESP32_I2S_Audio() {
     //i2s configuration
     m_i2s_num = I2S_NUM_0; // i2s port number
     i2s_config_t i2s_config = {
@@ -26,7 +26,7 @@ Audio::Audio() {
          .sample_rate = 16000,
          .bits_per_sample = I2S_BITS_PER_SAMPLE_16BIT,
          .channel_format = I2S_CHANNEL_FMT_RIGHT_LEFT,
-         .communication_format = (i2s_comm_format_t)(I2S_COMM_FORMAT_I2S | I2S_COMM_FORMAT_I2S_MSB),
+         .communication_format = (i2s_comm_format_t)(I2S_COMM_FORMAT_I2S | I2S_COMM_FORMAT_I2S_LSB),
          .intr_alloc_flags = ESP_INTR_FLAG_LEVEL1, // high interrupt priority
          .dma_buf_count = 8,  // max buffers
          .dma_buf_len = 1024, // max value
@@ -43,19 +43,19 @@ Audio::Audio() {
 }
 
 //---------------------------------------------------------------------------------------------------------------------
-esp_err_t Audio::I2Sstart(uint8_t i2s_num) {
+esp_err_t ESP32_I2S_Audio::I2Sstart(uint8_t i2s_num) {
     return i2s_start((i2s_port_t) i2s_num);
 }
 
-esp_err_t Audio::I2Sstop(uint8_t i2s_num) {
+esp_err_t ESP32_I2S_Audio::I2Sstop(uint8_t i2s_num) {
     return i2s_stop((i2s_port_t) i2s_num);
 }
 //---------------------------------------------------------------------------------------------------------------------
-Audio::~Audio() {
+ESP32_I2S_Audio::~ESP32_I2S_Audio() {
     I2Sstop(m_i2s_num);
 }
 //---------------------------------------------------------------------------------------------------------------------
-void Audio::reset(){
+void ESP32_I2S_Audio::reset(){
     stopSong();
     I2Sstop(0);
     I2Sstart(0);
@@ -100,7 +100,7 @@ void Audio::reset(){
 }
 
 //---------------------------------------------------------------------------------------------------------------------
-bool Audio::connecttohost(String host){
+bool ESP32_I2S_Audio::connecttohost(String host){
     if(host.length()==0){
         if(audio_info) audio_info("Hostaddress is empty");
         return false;
@@ -188,11 +188,11 @@ bool Audio::connecttohost(String host){
     return false;
 }
 //-----------------------------------------------------------------------------------------------------------------------------------
-bool Audio::connecttoSD(String sdfile){
+bool ESP32_I2S_Audio::connecttoSD(String sdfile){
     return connecttoFS(SD, sdfile);
 }
 //-----------------------------------------------------------------------------------------------------------------------------------
-bool Audio::connecttoFS(fs::FS &fs, String file){
+bool ESP32_I2S_Audio::connecttoFS(fs::FS &fs, String file){
     const uint8_t ascii[60]={
           //196, 197, 198, 199, 200, 201, 202, 203, 204, 205, 206, 207, 208, 209, 210, 211, 212, 213, 214, 215,   ISO
             142, 143, 146, 128, 000, 144, 000, 000, 000, 000, 000, 000, 000, 165, 000, 000, 000, 000, 153, 000, //ASCII
@@ -355,7 +355,7 @@ bool Audio::connecttoFS(fs::FS &fs, String file){
     return false;
 }
 //---------------------------------------------------------------------------------------------------------------------
-bool Audio::connecttospeech(String speech, String lang){
+bool ESP32_I2S_Audio::connecttospeech(String speech, String lang){
 
     reset();
     String host="translate.google.com";
@@ -499,7 +499,7 @@ bool Audio::connecttospeech(String speech, String lang){
     return true;
 }
 //---------------------------------------------------------------------------------------------------------------------
-long long int Audio::XL (long long int a, const char* b) {
+long long int ESP32_I2S_Audio::XL (long long int a, const char* b) {
     int len = strlen(b);
     for (int c = 0; c < len - 2; c += 3) {
         int  d = (long long int)b[c + 2];
@@ -510,7 +510,7 @@ long long int Audio::XL (long long int a, const char* b) {
     return a;
 }
 //---------------------------------------------------------------------------------------------------------------------
-char* Audio::lltoa(long long val, int base){
+char* ESP32_I2S_Audio::lltoa(long long val, int base){
 
     static char buf[64] = {0};
     static char chn=0;
@@ -530,7 +530,7 @@ char* Audio::lltoa(long long val, int base){
     return &buf[i+1];
 }
 //---------------------------------------------------------------------------------------------------------------------
-String Audio::urlencode(String str){
+String ESP32_I2S_Audio::urlencode(String str){
     String encodedString="";
     char c;
     char code0;
@@ -553,7 +553,7 @@ String Audio::urlencode(String str){
     return encodedString;
 }
 //---------------------------------------------------------------------------------------------------------------------
-void Audio::readID3Metadata(){
+void ESP32_I2S_Audio::readID3Metadata(){
     char frameid[5];
     int framesize=0;
     bool compressed;
@@ -761,7 +761,7 @@ void Audio::readID3Metadata(){
     } while (id3Size > 0);
 }
 //---------------------------------------------------------------------------------------------------------------------
-void Audio::stopSong(){
+void ESP32_I2S_Audio::stopSong(){
     if(m_f_running){
         m_f_running = false;
         audiofile.close();
@@ -770,7 +770,7 @@ void Audio::stopSong(){
     i2s_zero_dma_buffer((i2s_port_t)m_i2s_num);
 }
 //---------------------------------------------------------------------------------------------------------------------
-void Audio::playI2Sremains(){
+void ESP32_I2S_Audio::playI2Sremains(){
     // there is no  function to see if dma_buff is empty. So fill the dma completely.
     // As soon as all remains played this function returned. Or you can take this to create a short silence.
     if(m_bitRate==0)
@@ -786,7 +786,7 @@ void Audio::playI2Sremains(){
     }
 }
 //---------------------------------------------------------------------------------------------------------------------
-bool Audio::pauseResume()
+bool ESP32_I2S_Audio::pauseResume()
 {
     bool retVal = false;
     if(m_f_localfile || m_f_webstream)
@@ -801,7 +801,7 @@ bool Audio::pauseResume()
     return retVal;
 }
 //---------------------------------------------------------------------------------------------------------------------
-bool Audio::playChunk(){
+bool ESP32_I2S_Audio::playChunk(){
     // If we've got data, try and pump it out..
     if(getBitsPerSample()==8){
         if(m_channels==1){
@@ -858,7 +858,7 @@ bool Audio::playChunk(){
     return false;
 }
 //---------------------------------------------------------------------------------------------------------------------
-void Audio::loop() 
+void ESP32_I2S_Audio::loop() 
 {
     // - localfile - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
     if(m_f_localfile)
@@ -872,7 +872,7 @@ void Audio::loop()
     }
 }
 //---------------------------------------------------------------------------------------------------------------------
-void Audio::processLocalFile()
+void ESP32_I2S_Audio::processLocalFile()
 {
     if ( audiofile && m_f_running && m_f_localfile )
     {
@@ -914,7 +914,7 @@ void Audio::processLocalFile()
     }
 }
 //---------------------------------------------------------------------------------------------------------------------
-void Audio::processWebStream() {
+void ESP32_I2S_Audio::processWebStream() {
     if (m_f_running && m_f_webstream) {
         uint16_t bytesCanBeWritten = 0;
         int16_t bytesAddedToBuffer = 0;
@@ -1099,7 +1099,7 @@ void Audio::processWebStream() {
     }
 }
 //---------------------------------------------------------------------------------------------------------------------
-void Audio::handlebyte(uint8_t b){
+void ESP32_I2S_Audio::handlebyte(uint8_t b){
     static uint16_t playlistcnt;                                // Counter to find right entry in playlist
     String lcml;                                                // Lower case metaline
     static String ct;                                           // Contents type
@@ -1446,7 +1446,7 @@ void Audio::handlebyte(uint8_t b){
 }
 //---------------------------------------------------------------------------------------------------------------------
 
-void Audio::showstreamtitle(const char *ml, bool full){
+void ESP32_I2S_Audio::showstreamtitle(const char *ml, bool full){
     // example for ml:
     // StreamTitle='Oliver Frank - Mega Hitmix';StreamUrl='www.radio-welle-woerthersee.at';
     // or adw_ad='true';durationMilliseconds='10135';adId='34254';insertionType='preroll';
@@ -1551,7 +1551,7 @@ void Audio::showstreamtitle(const char *ml, bool full){
     }
 }
 //---------------------------------------------------------------------------------------------------------------------
-bool Audio::chkhdrline(const char* str){
+bool ESP32_I2S_Audio::chkhdrline(const char* str){
     char b;                                            // Byte examined
     int len=0;                                         // Length of the string
 
@@ -1571,7 +1571,7 @@ bool Audio::chkhdrline(const char* str){
     return false;                                      // End of string without colon
 }
 //---------------------------------------------------------------------------------------------------------------------
-int Audio::sendBytes(uint8_t *data, size_t len) {
+int ESP32_I2S_Audio::sendBytes(uint8_t *data, size_t len) {
 
     static uint32_t lastRet=0, count=0, swnf=0;
     static uint32_t lastSampleRate=0, lastChannels=0, lastBitsPerSeconds=0, lastBitRate=0;
@@ -1806,7 +1806,7 @@ int Audio::sendBytes(uint8_t *data, size_t len) {
     return bytesDecoded;
 }
 //---------------------------------------------------------------------------------------------------------------------
-bool Audio::setPinout(uint8_t BCLK, uint8_t LRC, uint8_t DOUT, int8_t DIN){
+bool ESP32_I2S_Audio::setPinout(uint8_t BCLK, uint8_t LRC, uint8_t DOUT, int8_t DIN){
     m_BCLK=BCLK;            // Bit Clock
     m_LRC=LRC;              // Left/Right Clock
     m_DOUT=DOUT;            // Data Out
@@ -1822,17 +1822,17 @@ bool Audio::setPinout(uint8_t BCLK, uint8_t LRC, uint8_t DOUT, int8_t DIN){
     return true;
 }
 //---------------------------------------------------------------------------------------------------------------------
-uint32_t Audio::getFileSize(){
+uint32_t ESP32_I2S_Audio::getFileSize(){
     if (!audiofile) return 0;
     return audiofile.size();
 }
 //---------------------------------------------------------------------------------------------------------------------
-uint32_t Audio::getFilePos(){
+uint32_t ESP32_I2S_Audio::getFilePos(){
     if (!audiofile) return 0;
     return audiofile.position();
 }
 //---------------------------------------------------------------------------------------------------------------------
-uint32_t Audio::getAudioFileDuration(){
+uint32_t ESP32_I2S_Audio::getAudioFileDuration(){
     if(m_f_localfile){
         if (!audiofile) return 0;
 
@@ -1855,16 +1855,16 @@ uint32_t Audio::getAudioFileDuration(){
     return 0;
 }
 //---------------------------------------------------------------------------------------------------------------------
-uint32_t Audio::getAudioCurrentTime(){  // return current time in seconds
+uint32_t ESP32_I2S_Audio::getAudioCurrentTime(){  // return current time in seconds
     return (uint32_t) m_audioCurrentTime;
 }
 //---------------------------------------------------------------------------------------------------------------------
-bool Audio::setFilePos(uint32_t pos){
+bool ESP32_I2S_Audio::setFilePos(uint32_t pos){
     if (!audiofile) return false;
     return audiofile.seek(pos);
 }
 //---------------------------------------------------------------------------------------------------------------------
-bool Audio::audioFileSeek(const int8_t speed) {
+bool ESP32_I2S_Audio::audioFileSeek(const int8_t speed) {
     bool retVal = false;
     if(audiofile && speed) {
         retVal = true; //    
@@ -1884,34 +1884,34 @@ bool Audio::audioFileSeek(const int8_t speed) {
     return retVal;
 }
 //---------------------------------------------------------------------------------------------------------------------
-bool Audio::setSampleRate(uint32_t sampRate) {
+bool ESP32_I2S_Audio::setSampleRate(uint32_t sampRate) {
     i2s_set_sample_rates((i2s_port_t)m_i2s_num, sampRate);
     m_sampleRate = sampRate;
     return true;
 }
-uint32_t Audio::getSampleRate(){
+uint32_t ESP32_I2S_Audio::getSampleRate(){
     return m_sampleRate;
 }
 //---------------------------------------------------------------------------------------------------------------------
-bool Audio::setBitsPerSample(int bits) {
+bool ESP32_I2S_Audio::setBitsPerSample(int bits) {
     if ( (bits != 16) && (bits != 8) ) return false;
     m_bitsPerSample = bits;
     return true;
 }
-uint8_t Audio::getBitsPerSample(){
+uint8_t ESP32_I2S_Audio::getBitsPerSample(){
     return m_bitsPerSample;
 }
 //---------------------------------------------------------------------------------------------------------------------
-bool Audio::setChannels(int ch) {
+bool ESP32_I2S_Audio::setChannels(int ch) {
     if((ch < 1) || (ch > 2)) return false;
     m_channels = ch;
     return true;
 }
-uint8_t Audio::getChannels(){
+uint8_t ESP32_I2S_Audio::getChannels(){
     return m_channels;
 }
 //---------------------------------------------------------------------------------------------------------------------
-bool Audio::playSample(int16_t sample[2]) {
+bool ESP32_I2S_Audio::playSample(int16_t sample[2]) {
     if (getBitsPerSample() == 8) { // Upsample from unsigned 8 bits to signed 16 bits
       sample[LEFTCHANNEL]  = (int16_t)(((sample[LEFTCHANNEL] &0xff)-128) << 8);
       sample[RIGHTCHANNEL] = (int16_t)(((sample[RIGHTCHANNEL]&0xff)-128) << 8);
@@ -1930,12 +1930,12 @@ bool Audio::playSample(int16_t sample[2]) {
     return true;
 }
 //---------------------------------------------------------------------------------------------------------------------
-void Audio::setVolume(uint8_t vol){ // vol 22 steps, 0...21
+void ESP32_I2S_Audio::setVolume(uint8_t vol){ // vol 22 steps, 0...21
     if(vol>21) vol=21;
     m_vol=volumetable[vol];
 }
 //---------------------------------------------------------------------------------------------------------------------
-uint8_t Audio::getVolume(){
+uint8_t ESP32_I2S_Audio::getVolume(){
     for(uint8_t i = 0; i < 22; i++){
         if(volumetable[i] == m_vol) return i;
     }
@@ -1943,7 +1943,7 @@ uint8_t Audio::getVolume(){
     return m_vol;
 }
 //---------------------------------------------------------------------------------------------------------------------
-int16_t Audio::Gain(int16_t s) {
+int16_t ESP32_I2S_Audio::Gain(int16_t s) {
     int32_t v;
     v= (s * m_vol)>>6;
     return (int16_t)(v&0xffff);

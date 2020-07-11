@@ -40,11 +40,11 @@ extern __attribute__((weak)) void audio_eof_stream(const char*); // The webstrea
 //
 
 
-class Audio  {
+class ESP32_I2S_Audio  {
 
 public:
-    Audio();
-    ~Audio();
+    ESP32_I2S_Audio();
+    ~ESP32_I2S_Audio();
     bool connecttoFS(fs::FS &fs, String file);
     bool connecttoSD(String sdfile);
     bool connecttohost(String host);
