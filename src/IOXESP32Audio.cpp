@@ -9,6 +9,7 @@ void audioLoopTask(void* p) {
         audio->loop();
         delay(1);
     }
+    vTaskDelete(NULL);
 }
 
 IOXESP32Audio::IOXESP32Audio() {
@@ -32,23 +33,23 @@ bool IOXESP32Audio::play(const char *path, const char *lang) {
 bool IOXESP32Audio::play(String path, String lang) {
     if (path.startsWith("SD:")) { // Play file on SD Card
         this->audio.connecttoFS(SD, path.substring(3));
-        ESP_LOGV("Audio", "SD File");
+        ESP_LOGI("Audio", "SD File");
     } else if (path.startsWith("FS:")) { // Play file on SPIFFS
         this->audio.connecttoFS(SPIFFS, path.substring(3));
-        ESP_LOGV("Audio", "SPIFFS File");
+        ESP_LOGI("Audio", "SPIFFS File");
     } else if (path.startsWith("http://") || path.startsWith("https://")) { // Play file on HTTP
         this->audio.connecttohost(path);
-        ESP_LOGV("Audio", "Play http");
+        ESP_LOGI("Audio", "Play http");
     } else {
         this->audio.connecttospeech(path, lang);
-        ESP_LOGV("Audio", "TTS");
+        ESP_LOGI("Audio", "TTS");
     }
 
     return true;
 }
 
 bool IOXESP32Audio::play(uint8_t* data, uint32_t len, AudioType type) {
-    
+
 }
 
 bool IOXESP32Audio::pause() {
@@ -83,46 +84,46 @@ void IOXESP32Audio::setVolume(int level) {
 IOXESP32Audio Audio;
 
 void audio_info(const char *info){
-    ESP_LOGV("Audio", "info: %s", info);
+    ESP_LOGI("Audio", "info: %s", info);
 }
 
 void audio_id3data(const char *info){  //id3 metadata
-    ESP_LOGV("Audio", "id3data: %s", info);
+    ESP_LOGI("Audio", "id3data: %s", info);
 }
 
 void audio_eof_mp3(const char *info){  //end of file
-    ESP_LOGV("Audio", "eof_mp3: %s", info);
+    ESP_LOGI("Audio", "eof_mp3: %s", info);
 }
 
 void audio_showstation(const char *info){
-    ESP_LOGV("Audio", "station: %s", info);
+    ESP_LOGI("Audio", "station: %s", info);
 }
 void audio_showstreaminfo(const char *info){
-    ESP_LOGV("Audio", "streaminfo: %s", info);
+    ESP_LOGI("Audio", "streaminfo: %s", info);
 }
 
 void audio_showstreamtitle(const char *info){
-    ESP_LOGV("Audio", "streamtitle: %s", info);
+    ESP_LOGI("Audio", "streamtitle: %s", info);
 }
 
 void audio_bitrate(const char *info){
-    ESP_LOGV("Audio", "bitrate: %s", info);
+    ESP_LOGI("Audio", "bitrate: %s", info);
 }
 
 void audio_commercial(const char *info){  //duration in sec
-    ESP_LOGV("Audio", "commercial: %s", info);
+    ESP_LOGI("Audio", "commercial: %s", info);
 }
 
 void audio_icyurl(const char *info){  //homepage
-    ESP_LOGV("Audio", "icyurl: %s", info);
+    ESP_LOGI("Audio", "icyurl: %s", info);
 }
 
 void audio_lasthost(const char *info){  //stream URL played
-    ESP_LOGV("Audio", "lasthost: %s", info);
+    ESP_LOGI("Audio", "lasthost: %s", info);
 }
 
 void audio_eof_speech(const char *info){
-    ESP_LOGV("Audio", "eof_speech: %s", info);
+    ESP_LOGI("Audio", "eof_speech: %s", info);
 }
 
 #endif

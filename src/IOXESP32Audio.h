@@ -28,10 +28,10 @@ class IOXESP32Audio {
         IOXESP32Audio() ;
 
         void begin() ;
-
         bool play(const char *path, const char *lang = "en") ;
         bool play(String path, String lang = "en") ;
         bool play(uint8_t* data, uint32_t len, AudioType type) ;
+        bool play() { resume(); };
         bool pause() ;
         bool resume() ;
         bool stop() ;
