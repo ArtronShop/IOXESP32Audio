@@ -3,6 +3,12 @@
 
 #include "IOXESP32Audio.h"
 
+EventCallback connectingCb = NULL;
+EventCallback playingCb = NULL;
+EventCallback stopCb = NULL;
+EventCallback pauseCb = NULL;
+EventCallback eofCb = NULL;
+
 void audioLoopTask(void* p) {
     ESP32_I2S_Audio *audio = (ESP32_I2S_Audio*) p;
     while(1) {
@@ -14,6 +20,10 @@ void audioLoopTask(void* p) {
 
 IOXESP32Audio::IOXESP32Audio() {
 
+}
+
+IOXESP32Audio::~IOXESP32Audio() {
+    vTaskDelete(audioLoopTaskHandle);
 }
 
 void IOXESP32Audio::begin() {
@@ -52,6 +62,13 @@ bool IOXESP32Audio::play(uint8_t* data, uint32_t len, AudioType type) {
 
 }
 
+bool IOXESP32Audio::play(File file) {
+    ESP_LOGI("Audio", "File class");
+    this->audio.connecttoFS(file);
+
+    return true;
+}
+
 bool IOXESP32Audio::pause() {
     if (this->audio.isRunning()) {
         this->audio.pauseResume();
@@ -81,10 +98,19 @@ void IOXESP32Audio::setVolume(int level) {
     this->audio.setVolume(map(level, 0, 100, 0, 21));
 }
 
+void IOXESP32Audio::onConnecting(EventCallback cb) { connectingCb = cb; };
+void IOXESP32Audio::onPlaying(EventCallback cb) { playingCb = cb; };
+void IOXESP32Audio::onStop(EventCallback cb) { stopCb = cb; };
+void IOXESP32Audio::onPause(EventCallback cb) { pauseCb = cb; };
+void IOXESP32Audio::onEOF(EventCallback cb) { eofCb = cb; };
+
 IOXESP32Audio Audio;
 
 void audio_info(const char *info){
     ESP_LOGI("Audio", "info: %s", info);
+    if (String(info).indexOf("StreamTitle=") >= 0) {
+        if (playingCb) playingCb();
+    }
 }
 
 void audio_id3data(const char *info){  //id3 metadata
@@ -93,6 +119,7 @@ void audio_id3data(const char *info){  //id3 metadata
 
 void audio_eof_mp3(const char *info){  //end of file
     ESP_LOGI("Audio", "eof_mp3: %s", info);
+    if (eofCb) eofCb();
 }
 
 void audio_showstation(const char *info){
@@ -120,6 +147,7 @@ void audio_icyurl(const char *info){  //homepage
 
 void audio_lasthost(const char *info){  //stream URL played
     ESP_LOGI("Audio", "lasthost: %s", info);
+    if (connectingCb) connectingCb();
 }
 
 void audio_eof_speech(const char *info){

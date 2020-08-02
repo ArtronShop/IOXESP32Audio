@@ -18,6 +18,8 @@ enum AudioType {
     TYPE_WAV_44100_STEREO
 };
 
+typedef void (*EventCallback)(void);
+
 class IOXESP32Audio {
     public:
         ESP32_I2S_Audio audio;
@@ -26,11 +28,13 @@ class IOXESP32Audio {
 
     public:
         IOXESP32Audio() ;
+        ~IOXESP32Audio() ;
 
         void begin() ;
         bool play(const char *path, const char *lang = "en") ;
         bool play(String path, String lang = "en") ;
         bool play(uint8_t* data, uint32_t len, AudioType type) ;
+        bool play(File file) ;
         bool play() { resume(); };
         bool pause() ;
         bool resume() ;
@@ -41,9 +45,16 @@ class IOXESP32Audio {
         int getVolume() ;
         void setVolume(int level) ;
 
+        // Event
+        void onConnecting(EventCallback cb) ;
+        void onPlaying(EventCallback cb) ;
+        void onStop(EventCallback cb) ;
+        void onPause(EventCallback cb) ;
+        void onEOF(EventCallback cb) ;
+
 }
 ;
 
-extern IOXESP32Audio Audio;
+// extern IOXESP32Audio Audio;
 
 #endif

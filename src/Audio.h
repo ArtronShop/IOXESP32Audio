@@ -46,6 +46,7 @@ public:
     ESP32_I2S_Audio();
     ~ESP32_I2S_Audio();
     bool connecttoFS(fs::FS &fs, String file);
+    bool connecttoFS(File file);
     bool connecttoSD(String sdfile);
     bool connecttohost(String host);
     bool connecttospeech(String speech, String lang);

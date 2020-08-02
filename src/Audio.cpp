@@ -27,6 +27,7 @@ ESP32_I2S_Audio::ESP32_I2S_Audio() {
          .bits_per_sample = I2S_BITS_PER_SAMPLE_16BIT,
          .channel_format = I2S_CHANNEL_FMT_RIGHT_LEFT,
          .communication_format = (i2s_comm_format_t)(I2S_COMM_FORMAT_I2S | I2S_COMM_FORMAT_I2S_LSB),
+         // .communication_format = (i2s_comm_format_t)(I2S_COMM_FORMAT_I2S | I2S_COMM_FORMAT_I2S_MSB),
          .intr_alloc_flags = ESP_INTR_FLAG_LEVEL1, // high interrupt priority
          .dma_buf_count = 8,  // max buffers
          .dma_buf_len = 1024, // max value
@@ -224,6 +225,170 @@ bool ESP32_I2S_Audio::connecttoFS(fs::FS &fs, String file){
         return false;
     }
     String afn = (String)audiofile.name();  //audioFileName
+    if(afn.endsWith(".mp3") || afn.endsWith(".MP3")) { // MP3 section
+        m_codec = CODEC_MP3;
+        MP3Decoder_AllocateBuffers();
+        sprintf(chbuf, "MP3Decoder has been initialized, free Heap: %u bytes", ESP.getFreeHeap());
+        if(audio_info) audio_info(chbuf);
+        audiofile.readBytes(chbuf, 10);
+        if ((chbuf[0] != 'I') || (chbuf[1] != 'D') || (chbuf[2] != '3')) {
+            if(audio_info) audio_info("file has no mp3 tag, skip metadata");
+            setFilePos(0);
+            m_f_running=true;
+            return false;
+        }
+        m_rev = chbuf[3];
+        switch (m_rev) {
+        case 2:
+            m_f_unsync = (chbuf[5] & 0x80);
+            m_f_exthdr = false;
+            break;
+        case 3:
+        case 4:
+            m_f_unsync = (chbuf[5] & 0x80); // bit7
+            m_f_exthdr = (chbuf[5] & 0x40); // bit6 extended header
+            break;
+        };
+
+        m_id3Size  = chbuf[6]; m_id3Size = m_id3Size << 7;
+        m_id3Size |= chbuf[7]; m_id3Size = m_id3Size << 7;
+        m_id3Size |= chbuf[8]; m_id3Size = m_id3Size << 7;
+        m_id3Size |= chbuf[9];
+
+        // Every read from now may be unsync'd
+        sprintf(chbuf, "ID3 version=%i", m_rev);
+        if(audio_info) audio_info(chbuf);
+        sprintf(chbuf,"ID3 framesSize=%i", m_id3Size);
+        if(audio_info) audio_info(chbuf);
+        readID3Metadata();
+        m_f_running=true;
+        return true;
+    } // end MP3 section
+
+    if(afn.endsWith(".wav")) { // WAVE section
+        m_codec = CODEC_WAV;
+        audiofile.readBytes(chbuf, 4); // read RIFF tag
+        if ((chbuf[0] != 'R') || (chbuf[1] != 'I') || (chbuf[2] != 'F') || (chbuf[3] != 'F')){
+            if(audio_info) audio_info("file has no RIFF tag");
+            setFilePos(0);
+            return false;
+        }
+
+        audiofile.readBytes(chbuf, 4); // read chunkSize (datalen)
+        uint32_t cs = (uint32_t)(chbuf[0] + (chbuf[1] <<8) + (chbuf[2] <<16) + (chbuf[3] <<24) - 8);
+//        sprintf(chbuf, "DataLength = %u", cs);
+//        if(audio_info) audio_info(chbuf);
+
+        audiofile.readBytes(chbuf, 4); /* read wav-format */ chbuf[5] = 0;
+        if ((chbuf[0] != 'W') || (chbuf[1] != 'A') || (chbuf[2] != 'V') || (chbuf[3] != 'E')){
+            if(audio_info) audio_info("format tag is not WAVE");
+            setFilePos(0);
+            return false;
+        }
+
+        while(true){ // skip wave chunks, seek for fmt element
+            audiofile.readBytes(chbuf, 4); /* read wav-format */
+            if ((chbuf[0] == 'f') && (chbuf[1] == 'm') && (chbuf[2] == 't')){
+                //if(audio_info) audio_info("format tag found");
+                break;
+            }
+        }
+
+        audiofile.readBytes(chbuf, 4); // fmt chunksize
+        cs = (uint32_t) (chbuf[0] + (chbuf[1] <<8));
+        if(cs>40) return false; //something is wrong
+        uint8_t bts=cs-16; // bytes to skip if fmt chunk is >16
+        //log_i("cs=%i, bts=%i", cs, bts);
+        audiofile.readBytes(chbuf, 16);
+        uint16_t fc  = (uint16_t)(chbuf[0]  + (chbuf[1] <<8));  // Format code
+        uint16_t nic = (uint16_t)(chbuf[2]  + (chbuf[3] <<8));  // Number of interleaved channels
+        uint32_t sr  = (uint32_t)(chbuf[4]  + (chbuf[5] <<8) + (chbuf[6]  <<16) + (chbuf[7]  <<24)); // Smpling rate
+        uint32_t dr  = (uint32_t)(chbuf[8]  + (chbuf[9] <<8) + (chbuf[10] <<16) + (chbuf[11] <<24)); // Data rate
+        uint16_t dbs = (uint16_t)(chbuf[12] + (chbuf[13] <<8));  // Data block size
+        uint16_t bps = (uint16_t)(chbuf[14] + (chbuf[15] <<8));  // Bits per sample
+        if(audio_info){
+            sprintf(chbuf, "FormatCode=%u", fc);      audio_info(chbuf);
+            sprintf(chbuf, "Channel=%u", nic);        audio_info(chbuf);
+            sprintf(chbuf, "SampleRate=%u", sr);    audio_info(chbuf);
+            sprintf(chbuf, "DataRate=%u", dr);        audio_info(chbuf);
+            sprintf(chbuf, "DataBlockSize=%u", dbs); audio_info(chbuf);
+            sprintf(chbuf, "BitsPerSample=%u", bps); audio_info(chbuf);
+        }
+
+        if(fc != 1){
+            if(audio_info) audio_info("format code is not 1 (PCM)");
+            return false;
+        }
+
+        if(nic != 1 && nic != 2){
+            if(audio_info) audio_info("number of channels must be 1 or 2");
+            return false;
+        }
+
+        if(bps != 8 && bps !=16){
+            if(audio_info) audio_info("bits per sample must be 8 or 16");
+            return false;
+        }
+        setBitsPerSample(bps);
+        setChannels(nic);
+        setSampleRate(sr);
+        m_bitRate = nic * sr * bps;
+        if(audio_info) sprintf(chbuf, "BitRate=%u", m_bitRate); audio_info(chbuf);
+
+        audiofile.readBytes(chbuf, bts); // skip to data
+        uint32_t s = getFilePos();
+        //here can be extra info, seek for data;
+        while(true){
+            setFilePos(s);
+            audiofile.readBytes(chbuf, 4); /* read header signature */
+            if ((chbuf[0] == 'd') && (chbuf[1] == 'a') && (chbuf[2] == 't') && (chbuf[3] == 'a')) break;
+            s++;
+        }
+
+        audiofile.readBytes(chbuf, 4); // read chunkSize (datalen)
+        cs = chbuf[0] + (chbuf[1] <<8) + (chbuf[2] <<16) + (chbuf[3] <<24) - 44;
+        sprintf(chbuf, "DataLength=%u", cs);
+        if(audio_info) audio_info(chbuf);
+        m_f_running=true;
+        return true;
+    } // end WAVE section
+    if(audio_info) audio_info("Neither wave nor mp3 format found");
+    return false;
+}
+//-----------------------------------------------------------------------------------------------------------------------------------
+bool ESP32_I2S_Audio::connecttoFS(File file){
+    const uint8_t ascii[60]={
+          //196, 197, 198, 199, 200, 201, 202, 203, 204, 205, 206, 207, 208, 209, 210, 211, 212, 213, 214, 215,   ISO
+            142, 143, 146, 128, 000, 144, 000, 000, 000, 000, 000, 000, 000, 165, 000, 000, 000, 000, 153, 000, //ASCII
+          //216, 217, 218, 219, 220, 221, 222, 223, 224, 225, 226, 227, 228, 229, 230, 231, 232, 233, 234, 235,   ISO
+            000, 000, 000, 000, 154, 000, 000, 225, 133, 000, 000, 000, 132, 143, 145, 135, 138, 130, 136, 137, //ASCII
+          //236, 237, 238, 239, 240, 241, 242, 243, 244, 245, 246, 247, 248, 249, 250, 251, 252, 253, 254, 255    ISO
+            000, 161, 140, 139, 000, 164, 000, 162, 147, 000, 148, 000, 000, 000, 163, 150, 129, 000, 000, 152};//ASCII
+
+    reset(); // free buffers an ser defaults
+
+    uint16_t i=0, s=0;
+    m_f_localfile = true;
+/*
+    if(!file.startsWith("/")) file="/"+file;
+    while(file[i] != 0){                                    //convert UTF8 to ASCII
+        path[i]=file[i];
+        if(path[i] > 195){
+            s=ascii[path[i]-196];
+            if(s!=0) path[i]=s;                             // found a related ASCII sign
+        } i++;
+    }
+    path[i]=0;*/
+    
+    if(!file){
+        if(audio_info) audio_info("Failed to open file for reading");
+        return false;
+    }
+    audiofile = file;
+    String afn = (String)audiofile.name();  //audioFileName
+    m_audioName=afn.substring(afn.lastIndexOf('/') + 1, afn.length());
+    sprintf(chbuf, "Reading file: %s", m_audioName.c_str());
+    if(audio_info) audio_info(chbuf);
     if(afn.endsWith(".mp3") || afn.endsWith(".MP3")) { // MP3 section
         m_codec = CODEC_MP3;
         MP3Decoder_AllocateBuffers();
