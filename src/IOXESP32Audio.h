@@ -55,6 +55,6 @@ class IOXESP32Audio {
 }
 ;
 
-// extern IOXESP32Audio Audio;
+extern IOXESP32Audio Audio;
 
 #endif
