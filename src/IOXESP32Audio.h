@@ -7,6 +7,7 @@
 #include <SPIFFS.h>
 #include "Audio.h"
 #include <esp_log.h>
+#include "Wire.h"
 
 enum AudioType {
     TYPE_MP3,
@@ -21,21 +22,24 @@ enum AudioType {
 typedef void (*EventCallback)(void);
 
 class IOXESP32Audio {
-    public:
+    private:
         ESP32_I2S_Audio audio;
 
         TaskHandle_t audioLoopTaskHandle;
+        bool isV2 = true;
+
+        bool write_register_i2c(uint8_t reg, uint16_t value) ;
 
     public:
         IOXESP32Audio() ;
         ~IOXESP32Audio() ;
 
-        void begin() ;
+        void begin(bool isV2 = true) ;
         bool play(const char *path, const char *lang = "en") ;
         bool play(String path, String lang = "en") ;
         bool play(uint8_t* data, uint32_t len, AudioType type) ;
         bool play(File file) ;
-        bool play() { resume(); };
+        bool play() { return resume(); };
         bool pause() ;
         bool resume() ;
         bool stop() ;

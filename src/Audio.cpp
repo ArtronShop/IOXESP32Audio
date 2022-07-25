@@ -26,8 +26,9 @@ ESP32_I2S_Audio::ESP32_I2S_Audio() {
          .sample_rate = 16000,
          .bits_per_sample = I2S_BITS_PER_SAMPLE_16BIT,
          .channel_format = I2S_CHANNEL_FMT_RIGHT_LEFT,
-         .communication_format = (i2s_comm_format_t)(I2S_COMM_FORMAT_I2S | I2S_COMM_FORMAT_I2S_LSB),
+         // .communication_format = (i2s_comm_format_t)(I2S_COMM_FORMAT_I2S | I2S_COMM_FORMAT_I2S_LSB),
          // .communication_format = (i2s_comm_format_t)(I2S_COMM_FORMAT_I2S | I2S_COMM_FORMAT_I2S_MSB),
+         .communication_format = I2S_COMM_FORMAT_STAND_I2S,
          .intr_alloc_flags = ESP_INTR_FLAG_LEVEL1, // high interrupt priority
          .dma_buf_count = 8,  // max buffers
          .dma_buf_len = 1024, // max value
@@ -171,6 +172,7 @@ bool ESP32_I2S_Audio::connecttohost(String host){
         }
     }
     if(m_f_ssl==true){
+        clientsecure.setInsecure();
         if(clientsecure.connect(hostwoext.c_str(), port)){
             if(audio_info) audio_info("SSL/TLS Connected to server");
             clientsecure.print(resp);
