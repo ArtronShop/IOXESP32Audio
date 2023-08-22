@@ -8,6 +8,7 @@
 #include "Audio.h"
 #include <esp_log.h>
 #include "Wire.h"
+#include "SparkFun_WM8960_Arduino_Library.h"
 
 enum AudioType {
     TYPE_MP3,
@@ -29,12 +30,13 @@ class IOXESP32Audio {
         bool isV2 = true;
 
         bool write_register_i2c(uint8_t reg, uint16_t value) ;
+        WM8960 *codec = NULL;
 
     public:
         IOXESP32Audio() ;
         ~IOXESP32Audio() ;
 
-        void begin(bool isV2 = true) ;
+        bool begin(bool isV2 = true) ;
         bool play(const char *path, const char *lang = "en") ;
         bool play(String path, String lang = "en") ;
         bool play(uint8_t* data, uint32_t len, AudioType type) ;

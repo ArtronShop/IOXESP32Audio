@@ -1,7 +1,4 @@
 #include "IOXESP32Audio.h"
-#include "wm8960.h"
-
-#define CODEC_ADDR  0x1a
 
 EventCallback connectingCb = NULL;
 EventCallback playingCb = NULL;
@@ -9,7 +6,7 @@ EventCallback stopCb = NULL;
 EventCallback pauseCb = NULL;
 EventCallback eofCb = NULL;
 
-void audioLoopTask(void* p) {
+static void audioLoopTask(void* p) {
     ESP32_I2S_Audio *audio = (ESP32_I2S_Audio*) p;
     while(1) {
         audio->loop();
@@ -26,7 +23,7 @@ IOXESP32Audio::~IOXESP32Audio() {
     vTaskDelete(audioLoopTaskHandle);
 }
 
-void IOXESP32Audio::begin(bool isV2) {
+bool IOXESP32Audio::begin(bool isV2) {
     this->isV2 = isV2;
 
     SPI.begin(18, 19, 23); // SCK, MISO, MOSI
@@ -38,51 +35,72 @@ void IOXESP32Audio::begin(bool isV2) {
     if (this->isV2) {
         Wire.begin(21, 22, 100E3); // SDA, SCL, Freq
 
-        // Power Management
-        this->write_register_i2c(0x19, 1<<8 | 1<<7 | 1<<6);
-        this->write_register_i2c(0x1A, 1<<8 | 1<<7 | 1<<6 | 1<<5 | 1<<4 | 1<<3);
-        this->write_register_i2c(0x2F, 1<<3 | 1<<2);
+        this->codec = new WM8960();
+        if (!this->codec->begin(Wire)) {
+            return false;
+        }
 
-        // Configure clock
-        //MCLK->div1->SYSCLK->DAC/ADC sample Freq = 25MHz(MCLK)/2*256 = 48.8kHz
-        write_register_i2c(0x04, 0x0000);
-        
-        //Configure ADC/DAC
-        write_register_i2c(0x05, 0x0000);
-        
-        //Configure audio interface
-        //I2S format 16 bits word length
-        write_register_i2c(0x07, 0x0002);
-        
-        //Configure HP_L and HP_R OUTPUTS
-        write_register_i2c(0x02, 0x0061 | 0x0100);  //LOUT1 Volume Set
-        write_register_i2c(0x03, 0x0061 | 0x0100);  //ROUT1 Volume Set
-        
-        //Configure SPK_RP and SPK_RN
-        write_register_i2c(0x28, 0x0077 | 0x0100); //Left Speaker Volume
-        write_register_i2c(0x29, 0x0077 | 0x0100); //Right Speaker Volume
-        
-        //Enable the OUTPUTS
-        write_register_i2c(0x31, 0x00F7); //Enable Class D Speaker Outputs
-        
-        //Configure DAC volume
-        write_register_i2c(0x0a, 0x00FF | 0x0100);
-        write_register_i2c(0x0b, 0x00FF | 0x0100);
-        
-        //3D
-        //  write_register_i2c(0x10, 0x000F);
-        
-        //Configure MIXER
-        write_register_i2c(0x22, 1<<8 | 1<<7);
-        write_register_i2c(0x25, 1<<8 | 1<<7);
-        
-        //Jack Detect
-        write_register_i2c(0x18, 1<<6 | 0<<5);
-        write_register_i2c(0x17, 0x01C3);
-        write_register_i2c(0x30, 0x0009);//0x000D,0x0005
+        // General setup needed
+        this->codec->enableVREF();
+        this->codec->enableVMID();
+
+        // Connect from DAC outputs to output mixer
+        this->codec->enableLD2LO();
+        this->codec->enableRD2RO();
+
+        // Set gainstage between booster mixer and output mixer
+        // For this loopback example, we are going to keep these as low as they go
+        this->codec->setLB2LOVOL(WM8960_OUTPUT_MIXER_GAIN_NEG_21DB); 
+        this->codec->setRB2ROVOL(WM8960_OUTPUT_MIXER_GAIN_NEG_21DB);
+
+        // Enable output mixers
+        this->codec->enableLOMIX();
+        this->codec->enableROMIX();
+
+        // CLOCK STUFF, These settings will get you 44.1KHz sample rate, and class-d 
+        // freq at 705.6kHz
+        this->codec->enablePLL(); // Needed for class-d amp clock
+        this->codec->setPLLPRESCALE(WM8960_PLLPRESCALE_DIV_2);
+        this->codec->setSMD(WM8960_PLL_MODE_FRACTIONAL);
+        this->codec->setCLKSEL(WM8960_CLKSEL_PLL);
+        this->codec->setSYSCLKDIV(WM8960_SYSCLK_DIV_BY_2);
+        this->codec->setBCLKDIV(4);
+        this->codec->setDCLKDIV(WM8960_DCLKDIV_16);
+        this->codec->setPLLN(7);
+        this->codec->setPLLK(0x86, 0xC2, 0x26); // PLLK=86C226h
+        //this->codec->setADCDIV(0); // Default is 000 (what we need for 44.1KHz)
+        //this->codec->setDACDIV(0); // Default is 000 (what we need for 44.1KHz)
+        this->codec->setWL(WM8960_WL_16BIT);
+
+        this->codec->enablePeripheralMode();
+        //this->codec->enableMasterMode();
+        //this->codec->setALRCGPIO(); // Note, should not be changed while ADC is enabled.
+
+        // Enable DACs
+        this->codec->enableDacLeft();
+        this->codec->enableDacRight();
+
+        //this->codec->enableLoopBack(); // Loopback sends ADC data directly into DAC
+        this->codec->disableLoopBack();
+
+        // Default is "soft mute" on, so we must disable mute to make channels active
+        this->codec->disableDacMute(); 
+
+        this->codec->enableSpeakers();
+        this->codec->enableHeadphones();
+        this->codec->disableOUT3MIX();
+        // this->codec->enableOUT3MIX(); // Provides VMID as buffer for headphone ground
+
+        ESP_LOGI("Audio", "Volume set to +0dB");
+        this->codec->setHeadphoneVolumeDB(0.00);
+
+        ESP_LOGI("Audio", "Volume set to +0dB");
+        this->codec->setSpeakerVolumeDB(0.00);
     }
 
     xTaskCreatePinnedToCore(audioLoopTask, "audioLoopTask", 32 * 1024, &this->audio, 10, &audioLoopTaskHandle, 1);
+
+    return true;
 }
 
 bool IOXESP32Audio::play(const char *path, const char *lang) {
@@ -150,15 +168,9 @@ int IOXESP32Audio::getVolume() {
 void IOXESP32Audio::setVolume(int level) {
     level = constrain(level, 0, 100);
     if (this->isV2) {
-        uint8_t vol_write = map(level, 0, 100, 0b0101111, 0b1111111) & 0b1111111;
-
-        //Configure HP_L and HP_R OUTPUTS
-        write_register_i2c(0x02, vol_write | 0x0100);  //LOUT1 Volume Set
-        write_register_i2c(0x03, vol_write | 0x0100);  //ROUT1 Volume Set
-        
-        //Configure SPK_RP and SPK_RN
-        write_register_i2c(0x28, vol_write | 0x0100); //Left Speaker Volume
-        write_register_i2c(0x29, vol_write | 0x0100); //Right Speaker Volume
+        float vol_write = map(level, 0, 100, -74, 6);
+        this->codec->setHeadphoneVolumeDB(vol_write);
+        this->codec->setSpeakerVolumeDB(vol_write);
     } else {
         this->audio.setVolume(map(level, 0, 100, 0, 21));
     }
@@ -169,19 +181,6 @@ void IOXESP32Audio::onPlaying(EventCallback cb) { playingCb = cb; };
 void IOXESP32Audio::onStop(EventCallback cb) { stopCb = cb; };
 void IOXESP32Audio::onPause(EventCallback cb) { pauseCb = cb; };
 void IOXESP32Audio::onEOF(EventCallback cb) { eofCb = cb; };
-
-bool IOXESP32Audio::write_register_i2c(uint8_t reg, uint16_t value) {
-    Wire.beginTransmission(CODEC_ADDR);
-    Wire.write((reg << 1) | ((value >> 8) & 0x01));
-    Wire.write(value & 0xff);
-    int ret = Wire.endTransmission();
-    if (ret != 0) {
-        ESP_LOGI("Audio", "I2C write error code : %d", ret);
-    } else {
-        ESP_LOGI("Audio", "I2C write OK!");
-    }
-    return ret == 0;
-}
 
 IOXESP32Audio Audio;
 
