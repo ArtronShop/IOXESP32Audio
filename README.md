@@ -1,97 +1,53 @@
-# ESP32-audioI2S
-Plays mp3 and wav files from SD card via I2S with external hardware.
+# IOXESP32Audio
+
+Plays mp3 and wav files from SD card via I2S with IOXESP32 Audio shield hardware.
 HELIX-mp3 and -aac decoder is included.
-Works with MAX98357A (3 Watt amplifier with DAC), connected three lines (DOUT, BLCK, LRC) to I2S.
-For stereo are two MAX98357A necessary. AudioI2S works with UDA1334A (Adafruit I2S Stereo Decoder Breakout Board) and PCM1502A.
-Other HW may work but not tested. Plays also icy-streams and GoogleTTS. Can be compiled with Arduino IDE.
 
-```` c++
-#include "Arduino.h"
-#include "WiFi.h"
-#include "Audio.h"
-#include "SD.h"
-#include "FS.h"
+Play `1.mp3` file from MicroSD Card
 
-// Digital I/O used
-#define SD_CS          5
-#define SPI_MOSI      23
-#define SPI_MISO      19
-#define SPI_SCK       18
-#define I2S_DOUT      25
-#define I2S_BCLK      27
-#define I2S_LRC       26
-
-Audio audio;
-
-String ssid =     "*******";
-String password = "*******";
+```c++
+#include <Arduino.h>
+#include <IOXESP32Audio.h>
 
 void setup() {
-    pinMode(SD_CS, OUTPUT);      digitalWrite(SD_CS, HIGH);
-    SPI.begin(SPI_SCK, SPI_MISO, SPI_MOSI);
-    Serial.begin(115200);
-    SD.begin(SD_CS);
-    WiFi.disconnect();
-    WiFi.mode(WIFI_STA);
-    WiFi.begin(ssid.c_str(), password.c_str());
-    while (WiFi.status() != WL_CONNECTED) delay(1500);
-    audio.setPinout(I2S_BCLK, I2S_LRC, I2S_DOUT);
-    audio.setVolume(21); // 0...21
+  Serial.begin(115200);
 
-//    audio.connecttoFS(SD, "/320k_test.mp3");
-//    audio.connecttoFS(SD, "test.wav");
-//    audio.connecttohost("http://www.wdr.de/wdrlive/media/einslive.m3u");
-//    audio.connecttohost("http://macslons-irish-pub-radio.com/media.asx");
-//    audio.connecttohost("http://mp3.ffh.de/radioffh/hqlivestream.aac"); //  128k aac
-      audio.connecttohost("http://mp3.ffh.de/radioffh/hqlivestream.mp3"); //  128k mp3
-//    audio.connecttospeech("Wenn die Hunde schlafen, kann der Wolf gut Schafe stehlen.", "de");
-//    audio.connecttohost("http://media.ndr.de/download/podcasts/podcast4161/AU-20190404-0844-1700.mp3"); // podcast
+  Audio.begin();
+  Audio.setVolume(80);
+  Audio.play("SD:/1.mp3");
 }
 
-void loop()
-{
-    audio.loop();
+void loop() {
+  delay(2000);
+}
+```
+
+Play internet radio
+
+```c++
+#include <Arduino.h>
+#include <IOXESP32Audio.h>
+#include <WiFi.h>
+
+void setup() {
+  Serial.begin(115200);
+
+  WiFi.begin("Artron@Kit", "Kit_Artron");
+
+  Serial.print("Connecting");
+  while(!WiFi.isConnected()) {
+    Serial.print(".");
+    delay(100);
+  }
+  Serial.println(" connected");
+
+  Audio.begin();
+  Audio.play("https://coolism-web.cdn.byteark.com/;stream/1");
+  Audio.setVolume(80);
 }
 
-// optional
-void audio_info(const char *info){
-    Serial.print("info        "); Serial.println(info);
+void loop() {
+  delay(2000);
 }
-void audio_id3data(const char *info){  //id3 metadata
-    Serial.print("id3data     ");Serial.println(info);
-}
-void audio_eof_mp3(const char *info){  //end of file
-    Serial.print("eof_mp3     ");Serial.println(info);
-}
-void audio_showstation(const char *info){
-    Serial.print("station     ");Serial.println(info);
-}
-void audio_showstreaminfo(const char *info){
-    Serial.print("streaminfo  ");Serial.println(info);
-}
-void audio_showstreamtitle(const char *info){
-    Serial.print("streamtitle ");Serial.println(info);
-}
-void audio_bitrate(const char *info){
-    Serial.print("bitrate     ");Serial.println(info);
-}
-void audio_commercial(const char *info){  //duration in sec
-    Serial.print("commercial  ");Serial.println(info);
-}
-void audio_icyurl(const char *info){  //homepage
-    Serial.print("icyurl      ");Serial.println(info);
-}
-void audio_lasthost(const char *info){  //stream URL played
-    Serial.print("lasthost    ");Serial.println(info);
-}
-void audio_eof_speech(const char *info){
-    Serial.print("eof_speech  ");Serial.println(info);
-}
+```
 
-````
-Breadboard
-![Breadboard](https://github.com/schreibfaul1/ESP32-audioI2S/blob/master/additional_info/Breadboard.jpg)
-Wiring
-![Wiring](https://github.com/schreibfaul1/ESP32-audioI2S/blob/master/additional_info/ESP32_I2S_PCM5102A.JPG)
-Impulse diagram
-![Impulse diagram](https://github.com/schreibfaul1/ESP32-audioI2S/blob/master/additional_info/Impulsdiagramm.jpg)
